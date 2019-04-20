@@ -1,13 +1,14 @@
 ﻿using cloudscribe.Core.SimpleContent;
 using cloudscribe.Core.SimpleContent.Integration;
 using cloudscribe.SimpleContent.Models;
+using cloudscribe.SimpleContent.Web.Design;
 using cloudscribe.SimpleContent.Web.TagHelpers;
+using cloudscribe.Web.Navigation.Caching;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.FileProviders;
-using System.Reflection;
+
+
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -21,21 +22,57 @@ namespace Microsoft.Extensions.DependencyInjection
         public const string FolderNewPostRouteName = "foldernewpost";
         public const string FolderPageIndexRouteName = "folderpageindex";
 
+        public static IServiceCollection AddCloudscribeCoreIntegrationForSimpleContent(
+            this IServiceCollection services,
+            IConfiguration configuration = null
+            )
+        {
+            services.AddScoped<IProjectSettingsResolver, SiteProjectSettingsResolver>();
+            services.AddScoped<IProjectSecurityResolver, ProjectSecurityResolver>();
+
+            services.TryAddScoped<IMediaProcessor, SiteFileSystemMediaProcessor>();
+
+            //services.AddScoped<MediaFolderHelper, MediaFolderHelper>();
+            services.AddScoped<IBlogRoutes, MultiTenantBlogRoutes>();
+            services.AddScoped<IPageRoutes, MultiTenantPageRoutes>();
+            //services.AddScoped<IPageNavigationCacheKeys, SiteNavigationCacheKeys>();
+            services.AddScoped<IRoleSelectorProperties, SiteRoleSelectorProperties>();
+            services.TryAddScoped<IAuthorNameResolver, AuthorNameResolver>();
+            services.TryAddScoped<IProjectEmailService, CoreProjectEmailService>();
+            services.AddScoped<ISimpleContentThemeHelper, SiteSimpleContentThemeHelper>();
+
+            services.AddScoped<ITreeCacheKeyResolver, SiteNavigationCacheKeyResolver>();
+            
+
+            if (configuration != null)
+            {
+                services.Configure<ContentSettingsUIConfig>(configuration.GetSection("ContentSettingsUIConfig"));
+            }
+            else
+            {
+                services.Configure<ContentSettingsUIConfig>(c =>
+                {
+                    // not doing anything just configuring the default
+                });
+            }
+            
+            return services;
+        }
+
+
         
-
-
-        //public static RazorViewEngineOptions AddEmbeddedViewsForCloudscribeCoreSimpleContentIntegration(this RazorViewEngineOptions options)
-        //{
-        //    options.FileProviders.Add(new EmbeddedFileProvider(
-        //            typeof(ContentSettingsController).GetTypeInfo().Assembly,
-        //            "cloudscribe.Core.SimpleContent.Integration"
-        //        ));
-
-        //    return options;
-        //}
 
         public static AuthorizationOptions AddCloudscribeCoreSimpleContentIntegrationDefaultPolicies(this AuthorizationOptions options)
         {
+            options.AddPolicy("BlogViewPolicy", policy =>
+                policy.RequireAssertion(context =>
+                {
+                    return true; //allow anonymous
+                })
+                );
+
+            
+
             options.AddPolicy(
                     "BlogEditPolicy",
                     authBuilder =>
@@ -51,6 +88,14 @@ namespace Microsoft.Extensions.DependencyInjection
                 {
                     authBuilder.RequireRole("Administrators", "Content Administrators");
                 });
+
+            options.AddPolicy(
+                    "ViewContentHistoryPolicy",
+                    authBuilder =>
+                    {
+                        authBuilder.RequireRole("Administrators", "Content Administrators");
+                    }
+                 );
 
             return options;
         }

@@ -7,19 +7,26 @@ title: Mark Diggety Down!
 author: Admin
 metaDescription: Developers love markdown
 isPublished: true
-pubDate: 2017-11-21T11:53:00.0000000Z
-lastModified: 2017-11-21T14:58:31.4134581Z
+pubDate: 2017-11-21T06:53:00.0000000-05:00
+lastModified: 2018-10-18T12:21:25.4099852Z
 isFeatured: true
 categories:
 - markdown
 - yaml
 - t-shirts
+- foo
 comments: []
+createdUtc: 2018-06-28T12:10:21.9591410-04:00
+lastModifiedByUser: admin
+autoTeaser: >-
+  <h2 id="markdown-rocks">Markdown Rocks!</h2>
+
+  <p></p>develop
 ---
 ## Markdown Rocks!
 
 developers love it!
 
-[![](/media/images/img_2008-ws.jpg)](/media/images/img_2008.jpg)
+![dudes](/media/images/dudes1-550x412.jpeg)
 
-an
+Say what? yeah

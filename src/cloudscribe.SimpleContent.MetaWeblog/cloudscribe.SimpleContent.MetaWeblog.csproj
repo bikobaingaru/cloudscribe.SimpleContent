@@ -2,17 +2,16 @@
 
   <PropertyGroup>
     <Description>cloudscribe.SimpleContent.MetaWeblog Class Library</Description>
-    <VersionPrefix>2.0.1</VersionPrefix>
-    <AssemblyVersion>2.0.1</AssemblyVersion>
+    <VersionPrefix>4.0.9</VersionPrefix>
+    <AssemblyVersion>4.0.9</AssemblyVersion>
     <Authors>Joe Audette</Authors>
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
-    <DebugType>portable</DebugType>
-    <AssemblyName>cloudscribe.SimpleContent.MetaWeblog</AssemblyName>
-    <PackageId>cloudscribe.SimpleContent.MetaWeblog</PackageId>
     <PackageTags>cloudscribe;metaweblog;blog;cms</PackageTags>
     <PackageIconUrl>https://raw.githubusercontent.com/joeaudette/cloudscribe/master/cloudscribe-icon-32.png</PackageIconUrl>
     <PackageProjectUrl>https://github.com/joeaudette/cloudscribe.SimpleContent</PackageProjectUrl>
-    <PackageLicenseUrl>http://www.apache.org/licenses/LICENSE-2.0</PackageLicenseUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/cloudscribe/cloudscribe.SimpleContent.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     
   </PropertyGroup>
 
@@ -21,14 +20,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="2.0.*" />
-    <PackageReference Include="cloudscribe.MetaWeblog" Version="2.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="2.1.1" />
+    <PackageReference Include="cloudscribe.MetaWeblog" Version="2.1.5" />
+    <PackageReference Include="cloudscribe.DateTimeUtils" Version="1.0.0" />
+    <PackageReference Include="cloudscribe.Versioning" Version="1.0.0" />
+    <PackageReference Include="cloudscribe.Web.Navigation" Version="2.1.14" />
+   
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Properties\" />
-  </ItemGroup>
-
-  
-
+ 
 </Project>

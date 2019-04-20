@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 // Author:					Joe Audette
 // Created:					2016-08-31
-// Last Modified:			2017-04-23
+// Last Modified:			2018-10-09
 // 
 
 using cloudscribe.SimpleContent.Models;
@@ -16,33 +16,62 @@ using System.Threading.Tasks;
 
 namespace cloudscribe.SimpleContent.Storage.EFCore
 {
-    public class PageQueries : IPageQueries
+    public class PageQueries : IPageQueries, IPageQueriesSingleton
     {
-        public PageQueries(ISimpleContentDbContext dbContext)
+        public PageQueries(ISimpleContentDbContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            _contextFactory = contextFactory;
         }
 
-        private ISimpleContentDbContext dbContext;
+        private readonly ISimpleContentDbContextFactory _contextFactory;
 
         public async Task<List<IPage>> GetAllPages(
             string projectId,
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            var query = from x in dbContext.Pages
-                        select x;
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                var query = from x in dbContext.Pages
+                            where x.ProjectId == projectId
+                            select x;
 
-            var items = await query
-                .AsNoTracking()
-                .ToListAsync<IPage>(cancellationToken)
-                .ConfigureAwait(false);
+                var items = await query
+                    .AsNoTracking()
+                    .ToListAsync<IPage>(cancellationToken)
+                    .ConfigureAwait(false);
 
-            return items;
+                return items;
+            }
+            
+        }
 
+        public async Task<List<IPage>> GetPagesReadyForPublish(
+            string projectId,
+            CancellationToken cancellationToken = default(CancellationToken)
+            )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var currentTime = DateTime.UtcNow;
+
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                var query = from x in dbContext.Pages
+                            where x.ProjectId == projectId
+                            && x.DraftPubDate != null
+                            && x.DraftPubDate < currentTime
+                            select x;
+
+                var items = await query
+                    .AsNoTracking()
+                    .ToListAsync<IPage>(cancellationToken)
+                    .ConfigureAwait(false);
+
+                return items;
+            }
+            
         }
 
         public async Task<IPage> GetPage(
@@ -51,16 +80,18 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            return await dbContext.Pages
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                return await dbContext.Pages
                 .Include(p => p.PageResources)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.Id == pageId, cancellationToken)
                 .ConfigureAwait(false)
                 ;
-
+            }
+            
         }
 
         public async Task<List<IPage>> GetRootPages(
@@ -68,21 +99,23 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            return await dbContext.Pages
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                return await dbContext.Pages
                 .AsNoTracking()
-                .Where(p => 
+                .Where(p =>
                 p.ProjectId == projectId
                 && (p.ParentId == "0" || p.ParentId == null || p.ParentId == "")
                 )
                 .OrderBy(p => p.PageOrder)
                 .ToListAsync<IPage>(cancellationToken)
-                
+
                 .ConfigureAwait(false)
                 ;
-
+            }
+            
         }
 
         public async Task<List<IPage>> GetChildPages(
@@ -91,19 +124,21 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            return await dbContext.Pages
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                return await dbContext.Pages
                 .AsNoTracking()
-                .Where(p => 
+                .Where(p =>
                 p.ParentId == pageId && p.ProjectId == projectId
                 )
                 .OrderBy(p => p.PageOrder)
                 .ToListAsync<IPage>(cancellationToken)
                 .ConfigureAwait(false)
                 ;
-
+            }
+            
         }
 
         public async Task<IPage> GetPageBySlug(
@@ -112,17 +147,19 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            return await dbContext.Pages
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                return await dbContext.Pages
                 .Include(p => p.PageResources)
                 .AsNoTracking()
-                .Where(p => 
+                .Where(p =>
                 p.Slug == slug && p.ProjectId == projectId)
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false)
                 ;
+            } 
         }
 
         public async Task<IPage> GetPageByCorrelationKey(
@@ -131,16 +168,18 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            return await dbContext.Pages
-                .AsNoTracking()
-                .Where(p =>
-                p.CorrelationKey == correlationKey && p.ProjectId == projectId)
-                .FirstOrDefaultAsync(cancellationToken)
-                .ConfigureAwait(false)
-                ;
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                return await dbContext.Pages
+               .AsNoTracking()
+               .Where(p =>
+               p.CorrelationKey == correlationKey && p.ProjectId == projectId)
+               .FirstOrDefaultAsync(cancellationToken)
+               .ConfigureAwait(false)
+               ;
+            }
         }
 
         public async Task<bool> SlugIsAvailable(
@@ -149,16 +188,18 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            var isInUse = await dbContext.Pages.AnyAsync(
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                var isInUse = await dbContext.Pages.AnyAsync(
                 p => p.Slug == slug && p.ProjectId == projectId,
                 cancellationToken
                 ).ConfigureAwait(false);
 
-            return !isInUse;
-
+                return !isInUse;
+            }
+            
         }
 
         public async Task<int> GetChildPageCount(
@@ -168,20 +209,22 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
             var currentTime = DateTime.UtcNow;
 
-            var count = await dbContext.Pages
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                var count = await dbContext.Pages
                 .CountAsync(x =>
                 x.ProjectId == projectId
                 && x.ParentId == pageId
                 && (includeUnpublished || (x.IsPublished && x.PubDate <= currentTime))
-               
+
                 );
 
-            return count;
+                return count;
+            }
         }
 
         // not implemented, do we need categories for pages?
@@ -207,45 +250,5 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
         //    return Task.FromResult(result);
         //}
 
-
-        #region IDisposable Support
-
-        private void ThrowIfDisposed()
-        {
-            if (disposedValue)
-            {
-                throw new ObjectDisposedException(GetType().Name);
-            }
-        }
-
-        private bool disposedValue = false; // To detect redundant calls
-
-        void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // TODO: dispose managed state (managed objects).
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
-                // TODO: set large fields to null.
-
-                disposedValue = true;
-            }
-        }
-
-
-        // This code added to correctly implement the disposable pattern.
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-            Dispose(true);
-            // TODO: uncomment the following line if the finalizer is overridden above.
-            // GC.SuppressFinalize(this);
-        }
-
-        #endregion
     }
 }

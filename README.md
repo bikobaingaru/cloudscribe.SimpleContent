@@ -10,8 +10,9 @@ If you have questions or just want to be social, say hello in our gitter chat ro
 
 | Windows  | Linux |
 | ------------- | ------------- |
-| [![Build status](https://ci.appveyor.com/api/projects/status/d0900wcf3y7l7jup/branch/master?svg=true)](https://ci.appveyor.com/project/joeaudette/cloudscribe-simplecontent/branch/master)  | [![Build Status](https://travis-ci.org/joeaudette/cloudscribe.SimpleContent.svg?branch=master)](https://travis-ci.org/joeaudette/cloudscribe.SimpleContent) |
+| [![Build status](https://ci.appveyor.com/api/projects/status/d0900wcf3y7l7jup/branch/master?svg=true)](https://ci.appveyor.com/project/joeaudette/cloudscribe-simplecontent/branch/master)  | [![Build Status](https://travis-ci.org/cloudscribe/cloudscribe.SimpleContent.svg?branch=master)](https://travis-ci.org/cloudscribe/cloudscribe.SimpleContent) |
 
+[![Twitter URL](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/cloudscribeweb) [![Twitter Follow](https://img.shields.io/twitter/follow/cloudscribeweb.svg?style=social&label=Follow)](https://twitter.com/cloudscribeweb)
 [![Join the chat at https://gitter.im/joeaudette/cloudscribe](https://badges.gitter.im/joeaudette/cloudscribe.svg)](https://gitter.im/joeaudette/cloudscribe?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## Getting Started
@@ -35,14 +36,13 @@ See the [Introduction](https://www.cloudscribe.com/docs/introduction) to get the
 * Cross platform, runs on ASP.NET Core which works on Windows, Mac, and Linux
 * Comments support - can easily be replaced by 3rd-party commenting systems such as Disqus
 * No database required - can use [markdown](https://www.cloudscribe.com/docs/using-markdown) or json for pages and can use markdown or xml for blog posts via [NoDb](https://github.com/joeaudette/NoDb). The XML format is the same as MiniBlog and BlogEngine.NET and you should be able to [migrate from other platforms](https://www.cloudscribe.com/docs/migrating-content-from-other-platforms)
-* You can optionally use a database - it currently supports MS SQL, PostgresSql, and MySql using Entity Framework Core
+* You can optionally use a database - it currently supports SQLite, MS SQL, PostgresSql, and MySql using Entity Framework Core
 * Can use either [cloudscribe Core](https://www.cloudscribe.com/docs/cloudscribe-core) or [cloudscribe SimpleAuth](https://github.com/joeaudette/cloudscribe.Web.SimpleAuth) for user accounts. (I recommend use cloudscribe Core even for small sites)
 * Can also be [integrated with other authentication systems](https://www.cloudscribe.com/docs/integrating-with-other-authentication-systems)
 * Supports [multiple tenants](https://www.cloudscribe.com/docs/multi-tenant-support) via integration using cloudscribe Core
 * [Supports Localization](https://www.cloudscribe.com/docs/localization)
 
 ### Planned Features
-* More advanced meta data capabilities
 * Support for using MongoDb - hoping for a community member to do that
 * A Utility for importing the NoDb content into Entity Framework Core or MongoDb for easy migration
 

@@ -46,6 +46,7 @@ namespace cloudscribe.Core.SimpleContent.Integration
             var isAuthenticated = false;
             var canEditPosts = false;
             var canEditPages = false;
+            var timeZoneId = userManager.Site.TimeZoneId;
 
             var authUser = await userManager.FindByNameAsync(userName);
 
@@ -73,10 +74,16 @@ namespace cloudscribe.Core.SimpleContent.Integration
                     canEditPages = await claimsPrincipal.CanEditPages(projectId, authorizationService);     
                 }
 
-                displayName = claimsPrincipal.GetDisplayName();
+                //displayName = claimsPrincipal.GetDisplayName();
+                displayName = claimsPrincipal.Identity.Name;
+                if(!string.IsNullOrWhiteSpace(authUser.TimeZoneId))
+                {
+                    timeZoneId = authUser.TimeZoneId;
+                }
+            
             }
 
-            var blogSecurity = new ProjectSecurityResult(displayName, projectId, isAuthenticated, canEditPosts, canEditPages);
+            var blogSecurity = new ProjectSecurityResult(displayName, projectId, isAuthenticated, canEditPosts, canEditPages, timeZoneId);
 
             return blogSecurity;
 

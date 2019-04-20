@@ -2,10 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 // Author:                  Joe Audette
 // Created:                 2016-08-06
-// Last Modified:           2017-03-02
+// Last Modified:           2019-03-04
 
 using cloudscribe.Core.Models;
 using cloudscribe.SimpleContent.Models;
+using cloudscribe.SimpleContent.Web.Services;
 using Microsoft.Extensions.Options;
 
 namespace cloudscribe.Core.SimpleContent.Integration
@@ -14,26 +15,39 @@ namespace cloudscribe.Core.SimpleContent.Integration
     {
         public MultiTenantBlogRoutes(
             SiteContext currentSite,
-            IOptions<MultiTenantOptions> multiTenantOptionsAccessor
+            IOptions<MultiTenantOptions> multiTenantOptionsAccessor,
+             CultureHelper cultureHelper
             )
         {
-            this.currentSite = currentSite;
-            multiTenantOptions = multiTenantOptionsAccessor.Value;
+            _currentSite = currentSite;
+            _multiTenantOptions = multiTenantOptionsAccessor.Value;
+            _cultureHelper = cultureHelper;
         }
 
-        private SiteContext currentSite;
-        private MultiTenantOptions multiTenantOptions;
+        private readonly SiteContext _currentSite;
+        private readonly MultiTenantOptions _multiTenantOptions;
+        private readonly CultureHelper _cultureHelper;
 
         public string PostWithDateRouteName
         {
             get
             {
-                if(multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if(_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if(!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if(!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderPostWithDateRouteName;
+                        }
+
                         return ProjectConstants.FolderPostWithDateRouteName;
                     }
+                }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CulturePostWithDateRouteName;
                 }
 
                 return ProjectConstants.PostWithDateRouteName;
@@ -44,12 +58,22 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderPostWithoutDateRouteName;
+                        }
+
                         return ProjectConstants.FolderPostWithoutDateRouteName;
                     }
+                }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CulturePostWithoutDateRouteName;
                 }
 
                 return ProjectConstants.PostWithoutDateRouteName;
@@ -60,12 +84,22 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderMostRecentPostRouteName;
+                        }
+
                         return ProjectConstants.FolderMostRecentPostRouteName;
                     }
+                }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CultureMostRecentPostRouteName;
                 }
 
                 return ProjectConstants.MostRecentPostRouteName;
@@ -76,13 +110,24 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderBlogCategoryRouteName;
+                        }
+
                         return ProjectConstants.FolderBlogCategoryRouteName;
                     }
                 }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CultureBlogCategoryRouteName;
+                }
+
                 return ProjectConstants.BlogCategoryRouteName;
             }
         }
@@ -91,13 +136,24 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderBlogArchiveRouteName;
+                        }
+
                         return ProjectConstants.FolderBlogArchiveRouteName;
                     }
                 }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CultureBlogArchiveRouteName;
+                }
+
                 return ProjectConstants.BlogArchiveRouteName;
             }
         }
@@ -106,13 +162,24 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderNewPostRouteName;
+                        }
+
                         return ProjectConstants.FolderNewPostRouteName;
                     }
                 }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CultureNewPostRouteName;
+                }
+
                 return ProjectConstants.NewPostRouteName;
             }
         }
@@ -121,13 +188,24 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderBlogIndexRouteName;
+                        }
+
                         return ProjectConstants.FolderBlogIndexRouteName;
                     }
                 }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CultureBlogIndexRouteName;
+                }
+
                 return ProjectConstants.BlogIndexRouteName;
             }
         }
@@ -136,14 +214,51 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderPostEditRouteName;
+                        }
+
                         return ProjectConstants.FolderPostEditRouteName;
                     }
                 }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CulturePostEditRouteName;
+                }
+
                 return ProjectConstants.PostEditRouteName;
+            }
+        }
+
+        public string PostEditWithTemplateRouteName
+        {
+            get
+            {
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                {
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
+                    {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderPostEditWithTemplateRouteName;
+                        }
+
+                        return ProjectConstants.FolderPostEditWithTemplateRouteName;
+                    }
+                }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CulturePostEditWithTemplateRouteName;
+                }
+
+                return ProjectConstants.PostEditWithTemplateRouteName;
             }
         }
 
@@ -151,14 +266,51 @@ namespace cloudscribe.Core.SimpleContent.Integration
         {
             get
             {
-                if (multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
                 {
-                    if (!string.IsNullOrEmpty(currentSite.SiteFolderName))
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
                     {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderPostDeleteRouteName;
+                        }
+
                         return ProjectConstants.FolderPostDeleteRouteName;
                     }
                 }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CulturePostDeleteRouteName;
+                }
+
                 return ProjectConstants.PostDeleteRouteName;
+            }
+        }
+
+        public string PostHistoryRouteName
+        {
+            get
+            {
+                if (_multiTenantOptions.Mode == MultiTenantMode.FolderName)
+                {
+                    if (!string.IsNullOrEmpty(_currentSite.SiteFolderName))
+                    {
+                        if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                        {
+                            return ProjectConstants.CultureFolderPostHistoryRouteName;
+                        }
+
+                        return ProjectConstants.FolderPostHistoryRouteName;
+                    }
+                }
+
+                if (_cultureHelper.UseCultureRoutesAndProjects() && !_cultureHelper.IsDefaultCulture())
+                {
+                    return ProjectConstants.CulturePostHistoryRouteName;
+                }
+
+                return ProjectConstants.PostHistoryRouteName;
             }
         }
 

@@ -2,9 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 // Author:                  Joe Audette
 // Created:                 2017-03-02
-// Last Modified:           2017-06-09
+// Last Modified:           2018-02-10
 // 
 
+using cloudscribe.Web.Common.DataAnnotations;
+using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace cloudscribe.SimpleContent.Web.ViewModels
@@ -35,7 +37,12 @@ namespace cloudscribe.SimpleContent.Web.ViewModels
 
         public string Categories { get; set; }
 
-        public string PubDate { get; set; } = string.Empty;
+        public DateTime? PubDate { get; set; }
+
+        [RequiredWhen("SaveMode", "PublishLater", ErrorMessage = "A Date is required to publish later.")]
+        public DateTime? NewPubDate { get; set; }
+
+        public DateTime? DraftPubDate { get; set; }
 
         public string CurrentPostUrl { get; set; }
 
@@ -48,6 +55,18 @@ namespace cloudscribe.SimpleContent.Web.ViewModels
 
         public string ContentType { get; set; } = "html";
 
+        public string TeaserOverride { get; set; }
+
+        public bool SuppressTeaser { get; set; }
+
+        public bool TeasersEnabled { get; set; }
+
+        public string SaveMode { get; set; } //SaveDraft, PublishNow, PublishLater buttomn values
+
+        public Guid? HistoryId { get; set; }
+        public DateTime? HistoryArchiveDate { get; set; }
+        public bool DidReplaceDraft { get; set; }
+        public bool DidRestoreDeleted { get; set; }
 
     }
 }

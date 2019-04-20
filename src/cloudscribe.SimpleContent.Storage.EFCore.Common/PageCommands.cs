@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 // Author:					Joe Audette
 // Created:					2016-08-31
-// Last Modified:			2016-11-09
+// Last Modified:			2018-10-09
 // 
 
 using cloudscribe.SimpleContent.Models;
@@ -16,14 +16,14 @@ using System.Threading.Tasks;
 
 namespace cloudscribe.SimpleContent.Storage.EFCore
 {
-    public class PageCommands : IPageCommands
+    public class PageCommands : IPageCommands, IPageCommandsSingleton
     {
-        public PageCommands(ISimpleContentDbContext dbContext)
+        public PageCommands(ISimpleContentDbContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            _contextFactory = contextFactory;
         }
 
-        private ISimpleContentDbContext dbContext;
+        private readonly ISimpleContentDbContextFactory _contextFactory;
 
         public async Task Create(
             string projectId,
@@ -32,21 +32,22 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             )
         {
             if (page == null) throw new ArgumentException("page must not be null");
-            //if (string.IsNullOrEmpty(projectId)) throw new ArgumentException("projectId must be provided");
-
+            
             var p = PageEntity.FromIPage(page);
 
             if (string.IsNullOrEmpty(p.Id)) { p.Id = Guid.NewGuid().ToString(); }
 
             if (string.IsNullOrEmpty(p.ProjectId)) p.ProjectId = projectId;
             p.LastModified = DateTime.UtcNow;
-            p.PubDate = DateTime.UtcNow;
+
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                dbContext.Pages.Add(p);
+
+                int rowsAffected = await dbContext.SaveChangesAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
             
-            dbContext.Pages.Add(p);
-
-            int rowsAffected = await dbContext.SaveChangesAsync(cancellationToken)
-                .ConfigureAwait(false);
-
         }
 
         public async Task Update(
@@ -57,37 +58,35 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
         {
             if (page == null) throw new ArgumentException("page must not be null");
             if (string.IsNullOrEmpty(page.Id)) throw new ArgumentException("can only update an existing page with a populated Id");
-
-            //if (string.IsNullOrEmpty(projectId)) throw new ArgumentException("projectId must be provided");
             var p = PageEntity.FromIPage(page);
-
             
-
             p.LastModified = DateTime.UtcNow;
-            bool tracking = dbContext.ChangeTracker.Entries<PageEntity>().Any(x => x.Entity.Id == p.Id);
-            if (!tracking)
-            {
-                dbContext.PageResources.RemoveRange(dbContext.PageResources.Where(x => x.PageEntityId == p.Id));
-                dbContext.Pages.Update(p);
-                
-            }
-            
-            int rowsAffected = await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            if(page.Resources.Count > 0)
+            using (var dbContext = _contextFactory.CreateContext())
             {
-                p.Resources = page.Resources;
-                foreach (var r in p.PageResources)
+                bool tracking = dbContext.ChangeTracker.Entries<PageEntity>().Any(x => x.Entity.Id == p.Id);
+                if (!tracking)
                 {
-                    r.PageEntityId = p.Id;
+                    dbContext.PageResources.RemoveRange(dbContext.PageResources.Where(x => x.PageEntityId == p.Id));
+                    dbContext.Pages.Update(p);
 
                 }
 
-                rowsAffected = await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                int rowsAffected = await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+                if (page.Resources.Count > 0)
+                {
+                    p.Resources = page.Resources;
+                    foreach (var r in p.PageResources)
+                    {
+                        r.PageEntityId = p.Id;
+
+                    }
+
+                    rowsAffected = await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
             }
-
-
-
+            
         }
 
         public async Task Delete(
@@ -96,17 +95,24 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            var itemToRemove = await dbContext.Pages.SingleOrDefaultAsync(
+
+            using (var dbContext = _contextFactory.CreateContext())
+            {
+                var itemToRemove = await dbContext.Pages.SingleOrDefaultAsync(
                 x => x.Id == pageId && x.ProjectId == projectId
                 , cancellationToken)
                 .ConfigureAwait(false);
 
-            if (itemToRemove == null) throw new InvalidOperationException("Page not found");
+                if (itemToRemove == null) throw new InvalidOperationException("Page not found");
 
-            dbContext.Pages.Remove(itemToRemove);
-            int rowsAffected = await dbContext.SaveChangesAsync(cancellationToken)
-                .ConfigureAwait(false);
 
+                dbContext.Pages.Remove(itemToRemove);
+
+
+                int rowsAffected = await dbContext.SaveChangesAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            
         }
 
 

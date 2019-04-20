@@ -225,4 +225,20 @@ src/example.WebApp/xnavigation.f83067b4-919d-4910-acd1-4b3b1c210ecf.xml
 **/sitefiles/s3/wwwroot/**
 src/sourceDev.WebApp/appsettings.Development.json
 src/sourceDev.WebApp/nodb_storage/projects/**/userlocation/**
+src/sourceDev.WebApp/nodb_storage/projects/**/contenthistory/**
 
+src/sourceDev.WebApp/cloudscribe-dev.db
+src/sourceDev.WebApp/cloudscribe4-dev.db
+**/wwwroot/dist/**
+**/app-react/**/*.js 
+**/app-react/**/*.map
+**/app-react/*.js
+**/app-react/*.map
+
+# Cake
+tools/**
+!tools/packages.config
+src/sourceDev.WebApp/sitefiles/s1/wwwroot/media/images/img_3646.jpg
+src/sourceDev.WebApp/sitefiles/s1/wwwroot/media/images/img_3646-ws.jpg
+src/sourceDev.WebApp/sitefiles/s1/wwwroot/media/testimages/**
+src/sourceDev.WebApp/cloudscribe1-dev.db

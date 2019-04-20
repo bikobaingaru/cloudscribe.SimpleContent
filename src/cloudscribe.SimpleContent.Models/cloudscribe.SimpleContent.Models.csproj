@@ -2,22 +2,22 @@
 
   <PropertyGroup>
     <Description>cloudscribe.SimpleContent.Models Class Library</Description>
-    <VersionPrefix>2.0.8</VersionPrefix>
-    <AssemblyVersion>2.0.8</AssemblyVersion>
+    <VersionPrefix>4.0.13</VersionPrefix>
+    <AssemblyVersion>4.0.13</AssemblyVersion>
     <Authors>Joe Audette</Authors>
-    <TargetFrameworks>netstandard1.6</TargetFrameworks>
-    <DebugType>portable</DebugType>
-    <AssemblyName>cloudscribe.SimpleContent.Models</AssemblyName>
-    <PackageId>cloudscribe.SimpleContent.Models</PackageId>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <PackageTags>cloudscribe;blog;cms</PackageTags>
     <PackageIconUrl>https://raw.githubusercontent.com/joeaudette/cloudscribe/master/cloudscribe-icon-32.png</PackageIconUrl>
     <PackageProjectUrl>https://github.com/joeaudette/cloudscribe.SimpleContent</PackageProjectUrl>
-    <PackageLicenseUrl>http://www.apache.org/licenses/LICENSE-2.0</PackageLicenseUrl>
-    
+    <RepositoryUrl>https://github.com/cloudscribe/cloudscribe.SimpleContent.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Security.Claims" Version="4.3.*" />
+    <PackageReference Include="cloudscribe.Pagination.Models" Version="1.0.4" />
+
+    <PackageReference Include="System.Security.Claims" Version="4.3.0" />
   </ItemGroup>
 
 </Project>

@@ -2,10 +2,10 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 // Author:                  Joe Audette
 // Created:                 2016-04-21
-// Last Modified:           2016-09-08
+// Last Modified:           2018-03-12
 // 
 
-using cloudscribe.Messaging.Email;
+using cloudscribe.Email;
 using cloudscribe.SimpleContent.Models;
 using Microsoft.Extensions.Logging;
 using cloudscribe.Web.Common.Razor;
@@ -19,14 +19,17 @@ namespace cloudscribe.SimpleContent.Services
 
         public ProjectEmailService(
             ViewRenderer viewRenderer,
+            IEmailSenderResolver emailSenderResolver,
             ILogger<ProjectEmailService> logger)
         {
-            this.viewRenderer = viewRenderer;
-            log = logger;
+            _viewRenderer = viewRenderer;
+            _emailSenderResolver = emailSenderResolver;
+            _log = logger;
         }
 
-        private ViewRenderer viewRenderer;
-        private ILogger log;
+        private ViewRenderer _viewRenderer;
+        private IEmailSenderResolver _emailSenderResolver;
+        private ILogger _log;
 
         public async Task SendCommentNotificationEmailAsync(
             IProjectSettings project,
@@ -37,82 +40,58 @@ namespace cloudscribe.SimpleContent.Services
             string deleteUrl
             )
         {
-            var smtpOptions = GetSmptOptions(project);
-
-            if (smtpOptions == null)
+            var sender = await _emailSenderResolver.GetEmailSender(project.Id);
+            if (sender == null)
             {
-                var logMessage = $"failed to send comment notification email because smtp settings are not populated for project {project.Id}";
-                log.LogError(logMessage);
+                var logMessage = $"failed to send account confirmation email because email settings are not populated for site {project.Title}";
+                _log.LogError(logMessage);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(project.CommentNotificationEmail))
             {
                 var logMessage = $"failed to send comment notification email because CommentNotificationEmail is not populated for project {project.Id}";
-                log.LogError(logMessage);
+                _log.LogError(logMessage);
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(project.EmailFromAddress))
-            {
-                var logMessage = $"failed to send comment notification email because EmailFromAddress is not populated for project {project.Id}";
-                log.LogError(logMessage);
-                return;
-            }
-
+            
             var model = new CommentNotificationModel(project, post, comment, postUrl);
             var subject = "Blog comment: " + post.Title;
 
             string plainTextMessage = null;
             string htmlMessage = null;
-            var sender = new EmailSender();
-
+            
             try
             {
                 try
                 {
                     htmlMessage 
-                        = await viewRenderer.RenderViewAsString<CommentNotificationModel>("CommentEmail", model);
+                        = await _viewRenderer.RenderViewAsString<CommentNotificationModel>("CommentEmail", model);
                 }
                 catch(Exception ex)
                 {
-                    log.LogError("error generating html email from razor template", ex);
+                    _log.LogError("error generating html email from razor template", ex);
                     return;
                 }
                 
                 await sender.SendEmailAsync(
-                    smtpOptions,
                     project.CommentNotificationEmail, //to
-                    project.EmailFromAddress, //from
+                    null, //from
                     subject,
                     plainTextMessage,
                     htmlMessage,
-                    comment.Email //replyto
+                    comment.Email, //replyto
+                    configLookupKey: project.Id
                     ).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
-                log.LogError("error sending comment notification email", ex);
+                _log.LogError($"error sending comment notification email {ex.Message} : {ex.StackTrace}");
             }
 
         }
 
-        private SmtpOptions GetSmptOptions(IProjectSettings project)
-        {
-            if (string.IsNullOrWhiteSpace(project.SmtpServer)) { return null; }
-
-            SmtpOptions smtpOptions = new SmtpOptions();
-            smtpOptions.Password = project.SmtpPassword;
-            smtpOptions.Port = project.SmtpPort;
-            smtpOptions.PreferredEncoding = project.SmtpPreferredEncoding;
-            smtpOptions.RequiresAuthentication = project.SmtpRequiresAuth;
-            smtpOptions.Server = project.SmtpServer;
-            smtpOptions.User = project.SmtpUser;
-            smtpOptions.UseSsl = project.SmtpUseSsl;
-
-            return smtpOptions;
-        }
-
-
+        
     }
 }

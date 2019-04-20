@@ -1,0 +1,15 @@
+﻿@model cloudscribe.SimpleContent.Web.ViewModels.PageViewModel
+@section Meta {
+    <meta name="robots" content="noindex, follow" />
+}
+@section Styles {
+    <partial name="StylePartial" model="@Model" />
+}
+@section Toolbar {
+    @if (Model.CanEdit)
+    {
+        <partial name="ToolsPartial" model="@Model" />
+    }
+}
+@await Component.InvokeAsync("Navigation", new { viewName = "ChildTree", filterName = NamedNavigationFilters.ChildTree, startingNodeKey = "RootNode" })
+

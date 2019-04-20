@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-namespace cloudscribe.SimpleContent.Web.Design
+﻿namespace cloudscribe.SimpleContent.Web.Design
 {
     public class IconCssClasses
     {
+        public string SetId { get; set; } = "glyphicons";
+
         public string Previous { get; set; } = "glyphicon glyphicon-backward";
         public string Next { get; set; } = "glyphicon glyphicon-forward";
         public string Comments { get; set; } = "glyphicon glyphicon-comment";
@@ -44,6 +41,11 @@ namespace cloudscribe.SimpleContent.Web.Design
 
         public string Delete { get; set; } = "glyphicon glyphicon-trash";
 
+        public string Unpublish { get; set; } = "glyphicon glyphicon-eye-close";
+
+        public string RelatedPosts { get; set; } = "far fa-hand-point-right"; //"fas fa-asterisk";
+
+        //<i class="far fa-hand-point-right"></i>
 
 
 

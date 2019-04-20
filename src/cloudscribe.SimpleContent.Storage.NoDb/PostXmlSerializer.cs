@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 // Author:                  Joe Audette
 // Created:                 2016-04-25
-// Last Modified:           2017-11-19
+// Last Modified:           2018-08-20
 // 
 
 using cloudscribe.SimpleContent.Models;
@@ -38,17 +38,32 @@ namespace cloudscribe.SimpleContent.Storage.NoDb
                                 new XElement("slug", post.Slug),
                                 new XElement("correlationkey", post.CorrelationKey),
                                 new XElement("author", post.Author),
-                                //new XElement("pubDate", post.PubDate.ToString("yyyy-MM-dd HH:mm:ss")),
-                                new XElement("pubDate", post.PubDate.ToString("O")),
-                                //new XElement("lastModified", post.LastModified.ToString("yyyy-MM-dd HH:mm:ss")),
-                                new XElement("lastModified", post.LastModified.ToString("O")),
+                                new XElement("pubDate", post.PubDate?.ToString("O")),
+                                new XElement("lastModified", post.LastModified.ToString("s")),
                                 new XElement("excerpt", post.MetaDescription),
                                 new XElement("content", post.Content),
                                 new XElement("contentType", post.ContentType),
                                 new XElement("imageUrl", post.ImageUrl),
                                 new XElement("thumbnailUrl", post.ThumbnailUrl),
+
+                                new XElement("createdUtc", post.CreatedUtc.ToString("s")),
+                                new XElement("createdByUser", post.CreatedByUser),
+                                new XElement("lastModifiedByUser", post.LastModifiedByUser),
+                                new XElement("draftAuthor", post.DraftAuthor),
+                                new XElement("draftContent", post.DraftContent),
+                                new XElement("draftPubDate", post.DraftPubDate?.ToString("O")),
+                                new XElement("templateKey", post.TemplateKey),
+                                new XElement("serializedModel", post.SerializedModel),
+                                new XElement("draftSerializedModel", post.DraftSerializedModel),
+                                new XElement("serializer", post.Serializer),
+                                new XElement("blogId", post.BlogId),
+
+
                                 new XElement("ispublished", post.IsPublished),
                                 new XElement("isFeatured", post.IsFeatured),
+                                new XElement("autoTeaser", post.AutoTeaser),
+                                new XElement("teaserOverride", post.TeaserOverride),
+                                new XElement("suppressTeaser", post.SuppressTeaser),
                                 new XElement("categories", string.Empty),
                                 new XElement("comments", string.Empty)
                             ));
@@ -75,7 +90,6 @@ namespace cloudscribe.SimpleContent.Storage.NoDb
                             new XElement("website", comment.Website),
                             new XElement("ip", comment.Ip),
                             new XElement("userAgent", comment.UserAgent),
-                            //new XElement("date", comment.PubDate.ToString("yyyy-MM-dd HH:m:ss")),
                             new XElement("date", comment.PubDate.ToString("O")),
                             new XElement("content", comment.Content),
                             new XAttribute("isAdmin", comment.IsAdmin),
@@ -112,6 +126,7 @@ namespace cloudscribe.SimpleContent.Storage.NoDb
             Post post = new Post()
             {
                 Id = key,
+                BlogId = ReadValue(doc.Root, "blogId"),
                 Title = ReadValue(doc.Root, "title"),
                 Author = ReadValue(doc.Root, "author"),
                 CorrelationKey = ReadValue(doc.Root, "correlationkey"),
@@ -121,10 +136,25 @@ namespace cloudscribe.SimpleContent.Storage.NoDb
                 Slug = ReadValue(doc.Root, "slug").ToLowerInvariant(),
                 ImageUrl = ReadValue(doc.Root, "imageUrl"),
                 ThumbnailUrl = ReadValue(doc.Root, "thumbnailUrl"),
-                PubDate = GetDate(doc.Root, "pubDate"),
+                PubDate = GetNullableDate(doc.Root, "pubDate"),
                 LastModified = GetDate(doc.Root, "lastModified"),
                 IsPublished = bool.Parse(ReadValue(doc.Root, "ispublished", "true")),
-                IsFeatured = bool.Parse(ReadValue(doc.Root, "isFeatured", "false"))
+                IsFeatured = bool.Parse(ReadValue(doc.Root, "isFeatured", "false")),
+                AutoTeaser = ReadValue(doc.Root, "autoTeaser"),
+                TeaserOverride = ReadValue(doc.Root, "teaserOverride"),
+                SuppressTeaser = bool.Parse(ReadValue(doc.Root, "suppressTeaser", "false")),
+
+                CreatedUtc = GetDate(doc.Root, "createdUtc"),
+                CreatedByUser = ReadValue(doc.Root, "createdByUser"),
+                LastModifiedByUser = ReadValue(doc.Root, "lastModifiedByUser"),
+                DraftAuthor = ReadValue(doc.Root, "draftAuthor"),
+                DraftContent = ReadValue(doc.Root, "draftContent"),
+                DraftPubDate = GetNullableDate(doc.Root, "draftPubDate"),
+                TemplateKey = ReadValue(doc.Root, "templateKey"),
+                SerializedModel = ReadValue(doc.Root, "serializedModel"),
+                DraftSerializedModel = ReadValue(doc.Root, "draftSerializedModel"),
+                Serializer = ReadValue(doc.Root, "serializer"),
+
             };
 
             LoadCategories(post, doc.Root);
@@ -186,7 +216,7 @@ namespace cloudscribe.SimpleContent.Storage.NoDb
             try
             {
                 d = DateTime.ParseExact(
-                    ReadValue(doc, "pubDate", DateTime.UtcNow.ToString()),
+                    ReadValue(doc, name, DateTime.UtcNow.ToString()),
                     "O",
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal |
@@ -197,14 +227,51 @@ namespace cloudscribe.SimpleContent.Storage.NoDb
             {
                 try
                 {
-                    d = DateTime.Parse(ReadValue(doc, "pubDate"));
+                    d = DateTime.Parse(ReadValue(doc, name));
                 }
                 catch(Exception ex)
                 {
-                    log.LogError("failed to parse date so returning current date/time error: " + ex.Message + " " + ex.StackTrace);
+                    log.LogError($"failed to parse date so returning current date/time error: {ex.Message}: {ex.StackTrace}");
                     d = DateTime.UtcNow;
                 }
                 
+
+            }
+
+            return d;
+        }
+
+        protected DateTime? GetNullableDate(XElement doc, XName name)
+        {
+            if (doc.Element(name) == null)
+                return null;
+
+            var val = ReadValue(doc, name);
+            if(string.IsNullOrWhiteSpace(val)) { return null; }
+
+            DateTime? d;
+            try
+            {
+                d = DateTime.ParseExact(
+                    val,
+                    "O",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal |
+                    DateTimeStyles.AdjustToUniversal
+                );
+            }
+            catch (FormatException)
+            {
+                try
+                {
+                    d = DateTime.Parse(val);
+                }
+                catch (Exception ex)
+                {
+                    log.LogError($"failed to parse date from {val} so returning null error: {ex.Message}: {ex.StackTrace}");
+                    d = null;
+                }
+
 
             }
 

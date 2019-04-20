@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 // Author:					Joe Audette
 // Created:					2016-08-31
-// Last Modified:			2017-10-05
+// Last Modified:			2019-02-11
 // 
 
 using cloudscribe.SimpleContent.Models;
@@ -12,21 +12,49 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace cloudscribe.SimpleContent.Storage.EFCore
 {
-    public class PostQueries : IPostQueries
+    public class PostQueries : IPostQueries, IPostQueriesSingleton
     {
-        public PostQueries(ISimpleContentDbContext dbContext)
+        public PostQueries(ISimpleContentDbContextFactory contextFactory)
         {
-            this.dbContext = dbContext;
+            _contextFactory = contextFactory;
         }
 
-        private ISimpleContentDbContext dbContext;
+        private readonly ISimpleContentDbContextFactory _contextFactory;
 
         private const string PostContentType = "Post";
+
+
+        public async Task<List<IPost>> GetPostsReadyForPublish(
+            string blogId,
+            CancellationToken cancellationToken = default(CancellationToken)
+            )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var currentTime = DateTime.UtcNow;
+
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = from x in db.Posts
+                            where x.BlogId == blogId
+                            && x.DraftPubDate != null
+                            && x.DraftPubDate < currentTime
+                            select x;
+
+                var items = await query
+                    .AsNoTracking()
+                    .ToListAsync<IPost>(cancellationToken)
+                    .ConfigureAwait(false);
+
+                return items;
+            }
+            
+        }
 
         /// <summary>
         /// this query is only used for the google site map so we don't need to get comments
@@ -41,19 +69,71 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            var query = dbContext.Posts
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var currentTime = DateTime.UtcNow;
+
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = db.Posts
                 .Where(p =>
                     p.BlogId == blogId
-                    &&  (includeUnpublished || (p.IsPublished && p.PubDate <= DateTime.UtcNow))
+                    && (includeUnpublished || (p.IsPublished == true && p.PubDate <= currentTime))
                       )
-                      .OrderByDescending(p => p.PubDate);
+                      .OrderByDescending(p => p.PubDate ?? p.LastModified);
 
-            var list = await query
-                .AsNoTracking()
-                .ToListAsync<IPost>();
+                var list = await query
+                    .AsNoTracking()
+                    .ToListAsync<IPost>();
+
+                return list;
+            }
             
-            return list;
         }
+
+        public async Task<List<IPost>> GetRelatedPosts(
+            string blogId,
+            string currentPostId,
+            int numberToGet,
+            CancellationToken cancellationToken = default(CancellationToken)
+            )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var currentTime = DateTime.UtcNow;
+            var currentPost = await GetPost(blogId, currentPostId, cancellationToken);
+            if (currentPost != null && currentPost.Categories.Count > 0)
+            {
+                var cats = currentPost.Categories.ToArray();
+
+                using (var db = _contextFactory.CreateContext())
+                {
+                    var query = from pc in db.PostCategories
+                                join p in db.Posts
+                                on pc.PostEntityId equals p.Id
+                                where pc.ProjectId == blogId
+                                && p.Id != currentPostId
+                                && p.IsPublished == true && p.PubDate <= currentTime
+                                && cats.Contains(pc.Value)
+                                select p;
+                    
+                    var posts = await query
+                        .AsNoTracking()
+                        .OrderByDescending(x => x.PubDate)
+                        .Distinct()
+                        .Take(numberToGet)
+                        .ToListAsync<IPost>(cancellationToken)
+                        .ConfigureAwait(false);
+
+                    return posts;
+                }
+
+            }
+            else
+            {
+                return new List<IPost>();
+            }
+        }
+
 
         public async Task<PagedPostResult> GetPosts(
             string blogId,
@@ -64,7 +144,6 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
             int offset = (pageSize * pageNumber) - pageSize;
@@ -72,29 +151,33 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
 
             var result = new PagedPostResult();
 
-            var query = dbContext.Posts
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = db.Posts
                 .Include(p => p.PostComments)
                 .Where(x =>
                 x.BlogId == blogId
-                && (includeUnpublished || (x.IsPublished && x.PubDate <= currentTime))
-                && (string.IsNullOrEmpty(category) || x.CategoriesCsv.Contains(category)) // will this work?
+                && (includeUnpublished || (x.IsPublished == true && x.PubDate <= currentTime))
+                && (string.IsNullOrEmpty(category) || x.CategoriesCsv.Contains(category))
                 )
-                .OrderByDescending(x => x.PubDate)
+                .OrderByDescending(x => x.PubDate ?? x.LastModified)
                 ;
 
-            var posts = await query
-                .AsNoTracking()
-                .Skip(offset)
-                .Take(pageSize)
-                .ToListAsync<IPost>(cancellationToken)
-                .ConfigureAwait(false);
+                var posts = await query
+                    .AsNoTracking()
+                    .Skip(offset)
+                    .Take(pageSize)
+                    .ToListAsync<IPost>(cancellationToken)
+                    .ConfigureAwait(false);
 
-            int totalPosts = await GetCount(blogId, category, includeUnpublished, cancellationToken).ConfigureAwait(false);
+                int totalPosts = await GetCount(blogId, category, includeUnpublished, cancellationToken).ConfigureAwait(false);
+
+                result.Data = posts;
+                result.TotalItems = totalPosts;
+
+                return result;
+            }
             
-            result.Data = posts;
-            result.TotalItems = totalPosts;
-
-            return result;
         }
 
         public async Task<int> GetCount(
@@ -104,19 +187,31 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
             var currentTime = DateTime.UtcNow;
 
-            var count = await dbContext.Posts
-                .CountAsync(x =>
-                x.BlogId == blogId
-                && (includeUnpublished || (x.IsPublished && x.PubDate <= currentTime))
-                && (string.IsNullOrEmpty(category) || x.CategoriesCsv.Contains(category)) // will this work?
-                );
+            using (var db = _contextFactory.CreateContext())
+            {
+                if (includeUnpublished)
+                {
+                    return await db.Posts
+                    .CountAsync<PostEntity>(x =>
+                    x.BlogId == blogId
+                    && (string.IsNullOrEmpty(category) || x.CategoriesCsv.Contains(category))
+                    );
+                }
+                else
+                {
+                    return await db.Posts
+                    .CountAsync<PostEntity>(x =>
+                    x.BlogId == blogId
+                    && (x.IsPublished == true && x.PubDate <= currentTime)
+                    && (string.IsNullOrEmpty(category) || x.CategoriesCsv.Contains(category))
+                    );
+                }
+            }
             
-            return count;
         }
 
         public async Task<List<IPost>> GetRecentPosts(
@@ -125,23 +220,27 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
-            
-            var query = dbContext.Posts
+            var currentTime = DateTime.UtcNow;
+
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = db.Posts
                // .Include(p => p.Comments) //think this is only used to populate a list in OLW so don't need the comments
-                .Where(p =>
-                p.IsPublished
-                && p.PubDate <= DateTime.UtcNow)
-                .OrderByDescending(p => p.PubDate)
-                ;
+               .Where(p =>
+               p.BlogId == blogId
+               && p.IsPublished == true
+               && p.PubDate <= currentTime)
+               .OrderByDescending(p => p.PubDate)
+               ;
 
-            return await query
-                .AsNoTracking()
-                .Take(numberToGet)
-                .ToListAsync<IPost>()
-                .ConfigureAwait(false);
-
+                return await query
+                    .AsNoTracking()
+                    .Take(numberToGet)
+                    .ToListAsync<IPost>()
+                    .ConfigureAwait(false);
+            }
+            
         }
 
         public async Task<List<IPost>> GetFeaturedPosts(
@@ -150,23 +249,28 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            var query = dbContext.Posts
+            var currentTime = DateTime.UtcNow;
+
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = db.Posts
                 .Where(p =>
-                p.IsPublished
+                p.BlogId == blogId
+                && p.IsPublished
                 && p.IsFeatured
-                && p.PubDate <= DateTime.UtcNow)
+                && p.PubDate <= currentTime)
                 .OrderByDescending(p => p.PubDate)
                 ;
 
-            return await query
-                .AsNoTracking()
-                .Take(numberToGet)
-                .ToListAsync<IPost>()
-                .ConfigureAwait(false);
-
+                return await query
+                    .AsNoTracking()
+                    .Take(numberToGet)
+                    .ToListAsync<IPost>()
+                    .ConfigureAwait(false);
+            }
+            
         }
 
         public async Task<PagedPostResult> GetPosts(
@@ -180,61 +284,68 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
             
             IQueryable<PostEntity> query;
-            
-            if (day > 0 && month > 0)
-            {
-                query = dbContext.Posts
-                     .Include(p => p.PostComments)
-                    .Where(
-                x => x.PubDate.Year == year
-                && x.PubDate.Month == month
-                && x.PubDate.Day == day
-                && (includeUnpublished || (x.IsPublished
-                && x.PubDate <= DateTime.UtcNow))
-                )
-                .OrderByDescending(p => p.PubDate)
-                ;
-            }
-            else if (month > 0)
-            {
-                query = dbContext.Posts
-                     .Include(p => p.PostComments)
-                    .Where(
-                x => x.PubDate.Year == year
-                && x.PubDate.Month == month
-                && (includeUnpublished || (x.IsPublished
-                && x.PubDate <= DateTime.UtcNow))
-                )
-                .OrderByDescending(p => p.PubDate)
-                ;
+            var currentTime = DateTime.UtcNow;
 
-            }
-            else
+            using (var db = _contextFactory.CreateContext())
             {
-                query = dbContext.Posts
-                     .Include(p => p.PostComments)
-                     .Where(
-                x => x.PubDate.Year == year
-                ).OrderByDescending(p => p.PubDate)
-                ;
+                if (day > 0 && month > 0)
+                {
+                    query = db.Posts
+                         .Include(p => p.PostComments)
+                        .Where(x =>
+                         x.BlogId == blogId
+                         && x.PubDate.HasValue
+                         && x.PubDate.Value.Year == year
+                         && x.PubDate.Value.Month == month
+                         && x.PubDate.Value.Day == day
+                         && (includeUnpublished || (x.IsPublished == true && x.PubDate <= currentTime))
+                    )
+                    .OrderByDescending(p => p.PubDate ?? p.LastModified)
+                    ;
+                }
+                else if (month > 0)
+                {
+                    query = db.Posts
+                         .Include(p => p.PostComments)
+                         .Where(x =>
+                            x.BlogId == blogId
+                            && x.PubDate.HasValue
+                            && x.PubDate.Value.Year == year
+                            && x.PubDate.Value.Month == month
+                            && (includeUnpublished || (x.IsPublished == true && x.PubDate <= currentTime))
+                           )
+                          .OrderByDescending(p => p.PubDate ?? p.LastModified)
+                          ;
+
+                }
+                else
+                {
+                    query = db.Posts
+                         .Include(p => p.PostComments)
+                         .Where(x =>
+                             x.BlogId == blogId
+                             && x.PubDate.HasValue
+                             && x.PubDate.Value.Year == year
+                           ).OrderByDescending(p => p.PubDate ?? p.LastModified)
+                           ;
+                }
+
+                int offset = (pageSize * pageNumber) - pageSize;
+                var posts = await query
+                    .AsNoTracking()
+                    .Skip(offset)
+                    .Take(pageSize)
+                    .ToListAsync<IPost>();
+
+                var result = new PagedPostResult();
+                result.Data = posts;
+                result.TotalItems = await GetCount(blogId, year, month, day, includeUnpublished, cancellationToken).ConfigureAwait(false);
+
+                return result;
             }
-            
-            int offset = (pageSize * pageNumber) - pageSize;
-            var posts = await query
-                .AsNoTracking()
-                .Skip(offset)
-                .Take(pageSize)
-                .ToListAsync<IPost>();
-
-            var result = new PagedPostResult();
-            result.Data = posts;
-            result.TotalItems = await GetCount(blogId, year, month, day, includeUnpublished, cancellationToken).ConfigureAwait(false);
-
-            return result;
             
         }
 
@@ -247,43 +358,50 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
             IQueryable<PostEntity> query;
+            var currentTime = DateTime.UtcNow;
 
-            if (day > 0 && month > 0)
+            using (var db = _contextFactory.CreateContext())
             {
-                query =  dbContext.Posts.Where(
-                x => x.PubDate.Year == year
-                && x.PubDate.Month == month
-                && x.PubDate.Day == day
-                && (includeUnpublished || (x.IsPublished
-                && x.PubDate <= DateTime.UtcNow))
-                )
-                ;
-            }
-            else if (month > 0)
-            {
-                query = dbContext.Posts.Where(
-                x => x.PubDate.Year == year
-                && x.PubDate.Month == month
-                && (includeUnpublished || (x.IsPublished
-                && x.PubDate <= DateTime.UtcNow))
-                )
-                ;
+                if (day > 0 && month > 0)
+                {
+                    query = db.Posts.Where(x =>
+                       x.BlogId == blogId
+                       && x.PubDate.HasValue
+                       && x.PubDate.Value.Year == year
+                       && x.PubDate.Value.Month == month
+                       && x.PubDate.Value.Day == day
+                       && (includeUnpublished || (x.IsPublished == true && x.PubDate <= currentTime))
+                        )
+                        ;
+                }
+                else if (month > 0)
+                {
+                    query = db.Posts.Where(x =>
+                        x.BlogId == blogId
+                        && x.PubDate.HasValue
+                        && x.PubDate.Value.Year == year
+                        && x.PubDate.Value.Month == month
+                        && (includeUnpublished || (x.IsPublished == true && x.PubDate <= currentTime))
+                        )
+                        ;
 
-            }
-            else
-            {
-                query = dbContext.Posts.Where(
-                x => x.PubDate.Year == year
-                )
-                ;
-            }
+                }
+                else
+                {
+                    query = db.Posts.Where(x =>
+                        x.BlogId == blogId
+                        && x.PubDate.HasValue
+                        && x.PubDate.Value.Year == year
+                        )
+                        ;
+                }
 
-            return await query.CountAsync<PostEntity>().ConfigureAwait(false);
-
+                return await query.CountAsync<PostEntity>().ConfigureAwait(false);
+            }
+            
         }
 
 
@@ -293,17 +411,19 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            var query = dbContext.Posts
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = db.Posts
                      .Include(p => p.PostComments)
                      .Where(p => p.Id == postId && p.BlogId == blogId)
                      ;
 
-            var post = await query.AsNoTracking().SingleOrDefaultAsync<PostEntity>().ConfigureAwait(false);
-            
-            return post;
+                var post = await query.AsNoTracking().SingleOrDefaultAsync<PostEntity>().ConfigureAwait(false);
+
+                return post;
+            }
         }
 
         public async Task<PostResult> GetPostBySlug(
@@ -312,47 +432,52 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
             var result = new PostResult();
 
-            var query = dbContext.Posts
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = db.Posts
                      .Include(p => p.PostComments)
                      .Where(p => p.Slug == slug && p.BlogId == blogId)
                      ;
 
-            var post = await query.AsNoTracking().SingleOrDefaultAsync<PostEntity>().ConfigureAwait(false);
-            
-            result.Post = await query.AsNoTracking().SingleOrDefaultAsync<PostEntity>().ConfigureAwait(false);
+                var post = await query.AsNoTracking().SingleOrDefaultAsync<PostEntity>().ConfigureAwait(false);
 
-            if (result.Post != null)
-            {
-                var cutoff = result.Post.PubDate;
+                result.Post = await query.AsNoTracking().SingleOrDefaultAsync<PostEntity>().ConfigureAwait(false);
 
-                result.PreviousPost = await dbContext.Posts
-                    .AsNoTracking()
-                    .Where(
-                    p => p.PubDate < cutoff
-                    && p.IsPublished == true
-                    )
-                    .OrderByDescending(p => p.PubDate)
-                    .Take(1)
-                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+                if (result.Post != null)
+                {
+                    var cutoff = result.Post.PubDate;
 
-                result.NextPost = await dbContext.Posts
-                    .AsNoTracking()
-                    .Where(
-                    p => p.PubDate > cutoff
-                    && p.IsPublished == true
-                    )
-                    .OrderBy(p => p.PubDate)
-                    .Take(1)
-                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+                    result.PreviousPost = await db.Posts
+                        .AsNoTracking()
+                        .Where(p =>
+                        p.BlogId == blogId
+                        && p.PubDate < cutoff
+                        && p.IsPublished == true
+                        )
+                        .OrderByDescending(p => p.PubDate ?? p.LastModified)
+                        .Take(1)
+                        .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
 
+                    result.NextPost = await db.Posts
+                        .AsNoTracking()
+                        .Where(p =>
+                        p.BlogId == blogId
+                        && p.PubDate > cutoff
+                        && p.IsPublished == true
+                        )
+                        .OrderBy(p => p.PubDate ?? p.LastModified)
+                        .Take(1)
+                        .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+
+                }
+
+                return result;
             }
-
-            return result;
+            
         }
 
         public async Task<IPost> GetPostByCorrelationKey(
@@ -361,17 +486,20 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
-            var query = dbContext.Posts
+            using (var db = _contextFactory.CreateContext())
+            {
+                var query = db.Posts
                      .Include(p => p.PostComments)
                      .Where(p => p.CorrelationKey == correlationKey && p.BlogId == blogId)
                      ;
 
-            var post = await query.AsNoTracking().FirstOrDefaultAsync<PostEntity>().ConfigureAwait(false);
+                var post = await query.AsNoTracking().FirstOrDefaultAsync<PostEntity>().ConfigureAwait(false);
 
-            return post;
+                return post;
+            }
+            
         }
 
         public async Task<bool> SlugIsAvailable(
@@ -380,15 +508,18 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
-            
-            var isInUse = await dbContext.Posts.AnyAsync(
-                p => p.Slug == slug && p.BlogId == blogId, 
+
+            using (var db = _contextFactory.CreateContext())
+            {
+                var isInUse = await db.Posts.AnyAsync(
+                p => p.Slug == slug && p.BlogId == blogId,
                 cancellationToken
                 ).ConfigureAwait(false);
 
-            return !isInUse;
+                return !isInUse;
+            }
+            
         }
 
 
@@ -398,45 +529,63 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
             var result = new Dictionary<string, int>();
 
-            var query = from x in dbContext.PostCategories
-                        join y in dbContext.Posts
-                        on x.PostEntityId equals y.Id
-                        where (
-                            (x.ProjectId.Equals(blogId))
-                            && (includeUnpublished || (y.IsPublished && y.PubDate <= DateTime.UtcNow))
-                            )
-                        select x
-                        ;
+            var currentTime = DateTime.UtcNow;
 
-            var list = await query
-                .AsNoTracking()
-               .ToListAsync(cancellationToken)
-               .ConfigureAwait(false);
-
-            
-            var grouped = from x in list
-                        group x by  x.Value
-                        into grp
-                        select 
-                          new { cat = grp.Key, count = grp.Count() }  
-                        ;
-            
-            foreach (var category in grouped)
+            using (var db = _contextFactory.CreateContext())
             {
-                if (!result.ContainsKey(category.cat))
+                var posts = await db.Posts
+                .AsNoTracking()
+                .Where(x =>
+                    (x.BlogId.Equals(blogId))
+                    //&& (includeUnpublished || (x.IsPublished == true && x.PubDate <= DateTime.UtcNow))
+                    )
+
+                    .ToListAsync(cancellationToken);
+
+                var categories = await db.PostCategories
+                    .AsNoTracking()
+                    .Where(x =>
+                        (x.ProjectId.Equals(blogId))
+
+                        )
+
+                        .ToListAsync(cancellationToken);
+
+                var list = from y in posts
+                           join x in categories
+                           on y.Id equals x.PostEntityId
+                           where (
+                                (x.ProjectId.Equals(blogId))
+                                && (includeUnpublished || (y.IsPublished && y.PubDate <= currentTime))
+                                )
+                           select x
+                            ;
+
+
+                var grouped = from x in list
+                              group x by x.Value
+                            into grp
+                              select
+                                new { cat = grp.Key, count = grp.Count() }
+                            ;
+
+                foreach (var category in grouped)
                 {
-                    result.Add(category.cat, category.count);
+                    if (!result.ContainsKey(category.cat))
+                    {
+                        result.Add(category.cat, category.count);
+                    }
                 }
+
+                var sorted = new SortedDictionary<string, int>(result);
+
+                return sorted.OrderBy(x => x.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value) as Dictionary<string, int>;
             }
             
-            var sorted = new SortedDictionary<string, int>(result);
-
-            return sorted.OrderBy(x => x.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value) as Dictionary<string, int>;
         }
 
 
@@ -446,73 +595,49 @@ namespace cloudscribe.SimpleContent.Storage.EFCore
             CancellationToken cancellationToken = default(CancellationToken)
             )
         {
-            ThrowIfDisposed();
             cancellationToken.ThrowIfCancellationRequested();
 
+            var currentTime = DateTime.UtcNow;
+
             var result = new Dictionary<string, int>();
-            
-            var query = from p in dbContext.Posts
-                          group p by new { month = p.PubDate.Month, year = p.PubDate.Year } into d
-                          select new
-                          {
-                              key = d.Key.year.ToString() + "/" + d.Key.month.ToString("00")
-                              ,
-                              count = d.Count()
-                          };
 
-            var grouped = await query.ToListAsync().ConfigureAwait(false);
-
-            foreach (var item in grouped)
+            using (var db = _contextFactory.CreateContext())
             {
-                result.Add(item.key, item.count);
-            }
+                var query = db.Posts
+                        .Where(x =>
+                            (x.BlogId.Equals(blogId))
+                            && (includeUnpublished || (x.IsPublished == true && x.PubDate <= currentTime))
+                            )
+                        ;
 
-            var sorted = new SortedDictionary<string, int>(result);
+                var list = await query
+                    .AsNoTracking()
+                   .ToListAsync(cancellationToken)
+                   .ConfigureAwait(false);
 
-            return sorted.OrderByDescending(x => x.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value) as Dictionary<string, int>;
-  
-        }
 
 
-        #region IDisposable Support
+                var grouped = from p in list
+                              group p by new { month = p.PubDate?.Month ?? p.LastModified.Month, year = p.PubDate?.Year ?? p.LastModified.Year } into d
+                              select new
+                              {
+                                  key = d.Key.year.ToString() + "/" + d.Key.month.ToString("00")
+                                  ,
+                                  count = d.Count()
+                              };
 
-        private void ThrowIfDisposed()
-        {
-            if (disposedValue)
-            {
-                throw new ObjectDisposedException(GetType().Name);
-            }
-        }
 
-        private bool disposedValue = false; // To detect redundant calls
-
-        void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
+                foreach (var item in grouped)
                 {
-                    // TODO: dispose managed state (managed objects).
+                    result.Add(item.key, item.count);
                 }
 
-                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
-                // TODO: set large fields to null.
+                var sorted = new SortedDictionary<string, int>(result);
 
-                disposedValue = true;
+                return sorted.OrderByDescending(x => x.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value) as Dictionary<string, int>;
             }
+            
         }
-
-
-        // This code added to correctly implement the disposable pattern.
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-            Dispose(true);
-            // TODO: uncomment the following line if the finalizer is overridden above.
-            // GC.SuppressFinalize(this);
-        }
-
-        #endregion
-
+        
     }
 }
